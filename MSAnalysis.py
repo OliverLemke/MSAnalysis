@@ -34,7 +34,7 @@ import Color_Mix as cm
 
 path = pathlib.Path().absolute()
 
-def get_Selection(data, prefix, method="File", labels=None):
+def get_Selection(data, prefix, method="File", labels=None, label_colors=None):
     """
     Obtain a dictionary containing row names, indices, label and fixed color for a selected groups 
 
@@ -50,6 +50,8 @@ def get_Selection(data, prefix, method="File", labels=None):
         The default is "File".
     labels : list of str, optional
         Labels for every group (Same length as prefix). The default is None.
+    label_colors : list of str, optional
+        Colors for every group (Same length as prefix). The default is None.
 
     Returns
     -------
@@ -62,7 +64,10 @@ def get_Selection(data, prefix, method="File", labels=None):
     if method in ["File"]: ##### Add further methods
         for ind,pre in enumerate(prefix):
             selection = {}
-            selection.update({"Color":colors[ind]})
+            if label_colors:
+                selection.update({"Color":label_colors[ind]})
+            else:
+                selection.update({"Color":colors[ind]})
             if labels:
                 selection.update({"Label":labels[ind]})
             else:
@@ -86,7 +91,7 @@ def get_Selection(data, prefix, method="File", labels=None):
 
 ### Maybe add flag for outside legend???
 
-def Plot_DimReduction(data, selection_dict, do_reduction=True, reduction_technique="pca", n_components=4, min_dist=0.0, n_neighbors=30, perplexity=30, learning_rate=10.0, var_cutoff=0.8, do_imputation=True, imputation="min", kNN=5, do_scaling=True, scaling ="log2", random_state=None, variance=None, output="DimReduction.png"):
+def Plot_DimReduction(data, selection_dict, do_reduction=True, reduction_technique="pca", n_components=4, min_dist=0.0, n_neighbors=30, perplexity=30, learning_rate=10.0, var_cutoff=0.8, do_imputation=True, imputation="min", kNN=5, do_scaling=True, scaling ="log2", random_state=None, variance=None, output="DimReduction.png", grouped=False):
     """
     Plot the dimensionality reduction of the input data. 
     Imputation and Scaling of the data can be included
@@ -145,6 +150,8 @@ def Plot_DimReduction(data, selection_dict, do_reduction=True, reduction_techniq
         Variances for precomputed principal components. The default is None.
     output : str, optional
         Name of the output file. The default is "DimReduction.png".
+    grouped : bool
+        One seperate plot for every selection. If set output only requires base name and no suffix. The default is False.
 
     Returns
     -------
@@ -183,64 +190,135 @@ def Plot_DimReduction(data, selection_dict, do_reduction=True, reduction_techniq
             data_reduced = data_scaled.values
         except:
             data_reduced = data_scaled
-      
-    fs = 25                       
-    legend_elements = [Patch(facecolor=selection_dict[key]["Color"],label=selection_dict[key]["Label"]) for key in selection_dict]
-    
-    fig = plt.figure()
-    if n_components > 3:
-        fig.set_size_inches((n_components-1)*6,(n_components-1)*5)
-    elif n_components==3:
-        fig.set_size_inches((n_components-1)*7,(n_components-1)*5)
-    else:
-        fig.set_size_inches((n_components-1)*9,(n_components-1)*5)
-    gs = GridSpec(n_components-1,n_components-1,figure=fig)
-    for i in range(n_components-1):
-        for j in range(i,n_components-1):
-            ax = fig.add_subplot(gs[j,i])
-            for key in selection_dict:
-                ax.scatter(data_reduced[selection_dict[key]["Indices"],i],data_reduced[selection_dict[key]["Indices"],j+1],c=selection_dict[key]["Color"])
-            if j==n_components-2:
-                if reduction_technique.lower() == "pca":
-                    try:
-                        ax.set_xlabel("PC "+str(i+1)+", "+"{0:.2f}".format(variance[i]),fontsize=fs)
-                    except:
-                        ax.set_xlabel("PC "+str(i+1),fontsize=fs)
-                elif reduction_technique.lower() == "umap":
-                    ax.set_xlabel("UMAP "+str(i+1),fontsize=fs)
-                elif reduction_technique.lower() == "tsne":
-                    ax.set_xlabel("t-SNE "+str(i+1),fontsize=fs)
-                else:
-                    ax.set_xlabel("Dimension "+str(i+1),fontsize=fs)
-                ax.tick_params(axis='x', labelsize=fs)
+    if grouped:
+        list_of_samples = [index for key in selection_dict for index in selection_dict[key]["FileNames"]]
+        list_of_indices = [index for key in selection_dict for index in selection_dict[key]["Indices"]]
+        for key in selection_dict:
+            selection_dict_n = {}
+            selection_dict_n.update({"Remaining":{"FileNames":[index for index in list_of_samples if index not in selection_dict[key]["FileNames"]],
+                                                  "Indices":[index for index in list_of_indices if index not in selection_dict[key]["Indices"]],
+                                                  "Label":"Remaining",
+                                                  "Color":"#7F7F7F"}})
+            selection_dict_n.update({key:selection_dict[key]})
+            fs = 25                       
+            legend_elements = [Patch(facecolor=selection_dict_n[key]["Color"],label=selection_dict_n[key]["Label"]) for key in selection_dict_n]
+            
+            fig = plt.figure()
+            if n_components > 3:
+                fig.set_size_inches((n_components-1)*6,(n_components-1)*5)
+            elif n_components==3:
+                fig.set_size_inches((n_components-1)*7,(n_components-1)*5)
             else:
-                ax.set_xticklabels([])
-            if i==0:
-                if reduction_technique.lower() == "pca":
-                    try:
-                        ax.set_ylabel("PC "+str(j+2)+", "+"{0:.2f}".format(variance[j+1]),fontsize=fs)
-                    except:
-                        ax.set_ylabel("PC "+str(j+2),fontsize=fs)
-                elif reduction_technique.lower() == "umap":
-                    ax.set_ylabel("UMAP "+str(j+2),fontsize=fs)
-                elif reduction_technique.lower() == "tsne":
-                    ax.set_ylabel("t-SNE "+str(j+2),fontsize=fs)
-                else:
-                    ax.set_ylabel("Dimension "+str(j+2),fontsize=fs)
-                ax.tick_params(axis='y', labelsize=fs)
-                ax.yaxis.set_label_coords(-.2, 0.5)
+                fig.set_size_inches((n_components-1)*9,(n_components-1)*5)
+            gs = GridSpec(n_components-1,n_components-1,figure=fig)
+            for i in range(n_components-1):
+                for j in range(i,n_components-1):
+                    ax = fig.add_subplot(gs[j,i])
+                    for key in selection_dict_n:
+                        if key=="Remaining":
+                            ax.scatter(data_reduced[selection_dict_n[key]["Indices"],i],data_reduced[selection_dict_n[key]["Indices"],j+1],c=selection_dict_n[key]["Color"],alpha=.5)
+                        else:
+                            ax.scatter(data_reduced[selection_dict_n[key]["Indices"],i],data_reduced[selection_dict_n[key]["Indices"],j+1],c=selection_dict_n[key]["Color"])
+                    if j==n_components-2:
+                        if reduction_technique.lower() == "pca":
+                            try:
+                                ax.set_xlabel("PC "+str(i+1)+", "+"{0:.2f}".format(variance[i]),fontsize=fs)
+                            except:
+                                ax.set_xlabel("PC "+str(i+1),fontsize=fs)
+                        elif reduction_technique.lower() == "umap":
+                            ax.set_xlabel("UMAP "+str(i+1),fontsize=fs)
+                        elif reduction_technique.lower() == "tsne":
+                            ax.set_xlabel("t-SNE "+str(i+1),fontsize=fs)
+                        else:
+                            ax.set_xlabel("Dimension "+str(i+1),fontsize=fs)
+                        ax.tick_params(axis='x', labelsize=fs)
+                    else:
+                        ax.set_xticklabels([])
+                    if i==0:
+                        if reduction_technique.lower() == "pca":
+                            try:
+                                ax.set_ylabel("PC "+str(j+2)+", "+"{0:.2f}".format(variance[j+1]),fontsize=fs)
+                            except:
+                                ax.set_ylabel("PC "+str(j+2),fontsize=fs)
+                        elif reduction_technique.lower() == "umap":
+                            ax.set_ylabel("UMAP "+str(j+2),fontsize=fs)
+                        elif reduction_technique.lower() == "tsne":
+                            ax.set_ylabel("t-SNE "+str(j+2),fontsize=fs)
+                        else:
+                            ax.set_ylabel("Dimension "+str(j+2),fontsize=fs)
+                        ax.tick_params(axis='y', labelsize=fs)
+                        ax.yaxis.set_label_coords(-.2, 0.5)
+                    else:
+                        ax.set_yticklabels([])
+                    ax.set_xlim(np.min(data_reduced[:,i])-1,np.max(data_reduced[:,i])+1)
+                    ax.set_ylim(np.min(data_reduced[:,j+1])-1,np.max(data_reduced[:,j+1])+1)
+            if n_components>3:
+                plt.legend(handles=legend_elements,fontsize=fs,loc="center",bbox_to_anchor=(0,(n_components-1)),ncol=int(np.ceil(len(selection_dict_n)/10)))
+            elif n_components==3:
+                plt.legend(handles=legend_elements,fontsize=fs,loc="upper left",bbox_to_anchor=(1.05,2),ncol=int(np.ceil(len(selection_dict_n)/10)))
             else:
-                ax.set_yticklabels([])
-            ax.set_xlim(np.min(data_reduced[:,i])-1,np.max(data_reduced[:,i])+1)
-            ax.set_ylim(np.min(data_reduced[:,j+1])-1,np.max(data_reduced[:,j+1])+1)
-    if n_components>3:
-        plt.legend(handles=legend_elements,fontsize=fs,loc="center",bbox_to_anchor=(0,(n_components-1)),ncol=int(np.ceil(len(selection_dict)/10)))
-    elif n_components==3:
-        plt.legend(handles=legend_elements,fontsize=fs,loc="upper left",bbox_to_anchor=(1.05,2),ncol=int(np.ceil(len(selection_dict)/10)))
+                plt.legend(handles=legend_elements,fontsize=fs,loc="upper left",bbox_to_anchor=((n_components-1),1),ncol=int(np.ceil(len(selection_dict_n)/10)))
+            
+            plt.savefig(os.path.join(path,output+"_"+key+".png"),bbox_inches='tight')
+        
     else:
-        plt.legend(handles=legend_elements,fontsize=fs,loc="upper left",bbox_to_anchor=((n_components-1),1),ncol=int(np.ceil(len(selection_dict)/10)))
-    
-    plt.savefig(os.path.join(path,output),bbox_inches='tight')
+        fs = 25                       
+        legend_elements = [Patch(facecolor=selection_dict[key]["Color"],label=selection_dict[key]["Label"]) for key in selection_dict]
+        
+        fig = plt.figure()
+        if n_components > 3:
+            fig.set_size_inches((n_components-1)*6,(n_components-1)*5)
+        elif n_components==3:
+            fig.set_size_inches((n_components-1)*7,(n_components-1)*5)
+        else:
+            fig.set_size_inches((n_components-1)*9,(n_components-1)*5)
+        gs = GridSpec(n_components-1,n_components-1,figure=fig)
+        for i in range(n_components-1):
+            for j in range(i,n_components-1):
+                ax = fig.add_subplot(gs[j,i])
+                for key in selection_dict:
+                    ax.scatter(data_reduced[selection_dict[key]["Indices"],i],data_reduced[selection_dict[key]["Indices"],j+1],c=selection_dict[key]["Color"])
+                if j==n_components-2:
+                    if reduction_technique.lower() == "pca":
+                        try:
+                            ax.set_xlabel("PC "+str(i+1)+", "+"{0:.2f}".format(variance[i]),fontsize=fs)
+                        except:
+                            ax.set_xlabel("PC "+str(i+1),fontsize=fs)
+                    elif reduction_technique.lower() == "umap":
+                        ax.set_xlabel("UMAP "+str(i+1),fontsize=fs)
+                    elif reduction_technique.lower() == "tsne":
+                        ax.set_xlabel("t-SNE "+str(i+1),fontsize=fs)
+                    else:
+                        ax.set_xlabel("Dimension "+str(i+1),fontsize=fs)
+                    ax.tick_params(axis='x', labelsize=fs)
+                else:
+                    ax.set_xticklabels([])
+                if i==0:
+                    if reduction_technique.lower() == "pca":
+                        try:
+                            ax.set_ylabel("PC "+str(j+2)+", "+"{0:.2f}".format(variance[j+1]),fontsize=fs)
+                        except:
+                            ax.set_ylabel("PC "+str(j+2),fontsize=fs)
+                    elif reduction_technique.lower() == "umap":
+                        ax.set_ylabel("UMAP "+str(j+2),fontsize=fs)
+                    elif reduction_technique.lower() == "tsne":
+                        ax.set_ylabel("t-SNE "+str(j+2),fontsize=fs)
+                    else:
+                        ax.set_ylabel("Dimension "+str(j+2),fontsize=fs)
+                    ax.tick_params(axis='y', labelsize=fs)
+                    ax.yaxis.set_label_coords(-.2, 0.5)
+                else:
+                    ax.set_yticklabels([])
+                ax.set_xlim(np.min(data_reduced[:,i])-1,np.max(data_reduced[:,i])+1)
+                ax.set_ylim(np.min(data_reduced[:,j+1])-1,np.max(data_reduced[:,j+1])+1)
+        if n_components>3:
+            plt.legend(handles=legend_elements,fontsize=fs,loc="center",bbox_to_anchor=(0,(n_components-1)),ncol=int(np.ceil(len(selection_dict)/10)))
+        elif n_components==3:
+            plt.legend(handles=legend_elements,fontsize=fs,loc="upper left",bbox_to_anchor=(1.05,2),ncol=int(np.ceil(len(selection_dict)/10)))
+        else:
+            plt.legend(handles=legend_elements,fontsize=fs,loc="upper left",bbox_to_anchor=((n_components-1),1),ncol=int(np.ceil(len(selection_dict)/10)))
+        
+        plt.savefig(os.path.join(path,output),bbox_inches='tight')
     return data_reduced
 
 def DimReduction_PCA(data, n_components=4):
@@ -994,4 +1072,4 @@ def get_samples_outliers(data, selection_dict, group="", cut_std_samples = 2, cu
     outliers = [selection_dict[group]["FileNames"][out] for out in np.where((np.abs(sum_samples-mean_samples)>(cut_std_samples*std_samples))&(np.abs(num_nan-mean_num_nan)>(cut_std_nan*std_num_nan)))[0]]
     return outliers
 
-### Add automated selection for position effects
+### Add automated selection for position effects (metadata needed!!!)
