@@ -28,6 +28,9 @@ import Color_Mix as cm
 ##### Include correlation analysis
 ##### Diff. Expressed proteins hist with groups
 ##### Include position selection?
+##### DE add label/title (text)
+##### Other selection methods for get selection
+##### Add flag for pre-scaled data in volcano plot for FC-Berechnung  DONE
 ######
 
 ##### NaN-Euclidean distance for UMAP????
@@ -699,7 +702,7 @@ def get_TopFC(data, selection_dict, groups=["qc","Remaining"], Top_N=10, method=
 ####
 ####
 
-def Plot_Volcano(data, selection_dict, groups=["qc","Remaining"], p_cut_1=.05, p_cut_2=.01, fc_cut=2, label=True, p_values=None, method_p="t-test", fold_changes=None, method_fc="median", alpha=.05, output="Volcano.png", title=None, write_file=False, file_out="Volcano.tsv"):
+def Plot_Volcano(data, selection_dict, groups=["qc","Remaining"], p_cut_1=.05, p_cut_2=.01, fc_cut=2, label=True, p_values=None, method_p="t-test", fold_changes=None, method_fc="median", alpha=.05, output="Volcano.png", title=None, write_file=False, file_out="Volcano.tsv", logscaled=False):
     """
     Get a Volcano plot for differential expression analysis. If not precomputed, p-values are adjusted using Benjamini-Hochberg correction.
     
@@ -746,6 +749,8 @@ def Plot_Volcano(data, selection_dict, groups=["qc","Remaining"], p_cut_1=.05, p
         Write differential expressed genes to file. The default is False.
     file_out : str, optional
         Name of the output file if write_file=True. The default is "Volcano.tsv".
+    logscaled : bool, optional
+        True if data are already log2-transformed. The default is False.
 
     Returns
     -------
@@ -762,14 +767,24 @@ def Plot_Volcano(data, selection_dict, groups=["qc","Remaining"], p_cut_1=.05, p
     
     if not fold_changes:
         if method_fc in ["median","mean","min","max"]:
-            if method_fc == "median":
-                fold_changes = data.loc[selection_dict[groups[1]]["FileNames"],:].median()/data.loc[selection_dict[groups[0]]["FileNames"],:].median()
-            elif method_fc == "mean":
-                fold_changes = data.loc[selection_dict[groups[1]]["FileNames"],:].mean()/data.loc[selection_dict[groups[0]]["FileNames"],:].mean()
-            elif method_fc == "min":
-                fold_changes = data.loc[selection_dict[groups[1]]["FileNames"],:].min()/data.loc[selection_dict[groups[0]]["FileNames"],:].min()
-            elif method_fc == "max":
-                fold_changes = data.loc[selection_dict[groups[1]]["FileNames"],:].max()/data.loc[selection_dict[groups[0]]["FileNames"],:].max()
+            if logscaled:
+                if method_fc == "median":
+                    fold_changes = data.loc[selection_dict[groups[1]]["FileNames"],:].median()-data.loc[selection_dict[groups[0]]["FileNames"],:].median()
+                elif method_fc == "mean":
+                    fold_changes = data.loc[selection_dict[groups[1]]["FileNames"],:].mean()-data.loc[selection_dict[groups[0]]["FileNames"],:].mean()
+                elif method_fc == "min":
+                    fold_changes = data.loc[selection_dict[groups[1]]["FileNames"],:].min()-data.loc[selection_dict[groups[0]]["FileNames"],:].min()
+                elif method_fc == "max":
+                    fold_changes = data.loc[selection_dict[groups[1]]["FileNames"],:].max()-data.loc[selection_dict[groups[0]]["FileNames"],:].max()
+            else:
+                if method_fc == "median":
+                    fold_changes = data.loc[selection_dict[groups[1]]["FileNames"],:].median()/data.loc[selection_dict[groups[0]]["FileNames"],:].median()
+                elif method_fc == "mean":
+                    fold_changes = data.loc[selection_dict[groups[1]]["FileNames"],:].mean()/data.loc[selection_dict[groups[0]]["FileNames"],:].mean()
+                elif method_fc == "min":
+                    fold_changes = data.loc[selection_dict[groups[1]]["FileNames"],:].min()/data.loc[selection_dict[groups[0]]["FileNames"],:].min()
+                elif method_fc == "max":
+                    fold_changes = data.loc[selection_dict[groups[1]]["FileNames"],:].max()/data.loc[selection_dict[groups[0]]["FileNames"],:].max()
         else:
             raise ValueError("Method for fold-change calculation not found")    
     
@@ -777,7 +792,7 @@ def Plot_Volcano(data, selection_dict, groups=["qc","Remaining"], p_cut_1=.05, p
         if method_p in ["t-test","Welch","Wilcoxon"]:
             if method_p == "t-test":
                 p_values = ttest_ind(data.loc[selection_dict[groups[0]]["FileNames"],:],data.loc[selection_dict[groups[1]]["FileNames"],:],equal_var=True,nan_policy="omit")[1]
-            if method_p == "Welch":
+            elif method_p == "Welch":
                 p_values = ttest_ind(data.loc[selection_dict[groups[0]]["FileNames"],:],data.loc[selection_dict[groups[1]]["FileNames"],:],equal_var=False,nan_policy="omit")[1]
             elif method_p == "Wilcoxon":
                 p_values = np.asarray([ranksums(data.loc[selection_dict[groups[0]]["FileNames"],column],data.loc[selection_dict[groups[1]]["FileNames"],column])[1] for column in data.columns])
@@ -785,10 +800,12 @@ def Plot_Volcano(data, selection_dict, groups=["qc","Remaining"], p_cut_1=.05, p
         else:
             raise ValueError("Method for p-value calculation not found")
     
-    p_values = p_values[~np.isnan(fold_changes.values)]
-    fold_changes.drop(index=fold_changes.index.values[np.where(np.isnan(fold_changes.values))], inplace=True)
-    fold_changes.drop(index=fold_changes.index.values[np.where(~(p_values>0).filled(False))], inplace=True)
-    p_values = p_values[(p_values>0).filled(False)]
+    if np.isnan(fold_changes.values).any():
+        p_values = p_values[~np.isnan(fold_changes.values)]
+        fold_changes.drop(index=fold_changes.index.values[np.where(np.isnan(fold_changes.values))], inplace=True)
+    if np.ma.is_masked(p_values):
+        fold_changes.drop(index=fold_changes.index.values[np.where(~(p_values>0).filled(False))], inplace=True)
+        p_values = p_values[(p_values>0).filled(False)]
     
     if adjust:
         p_adjusted = multipletests(p_values,alpha=alpha,method="fdr_bh")[1]
@@ -802,14 +819,24 @@ def Plot_Volcano(data, selection_dict, groups=["qc","Remaining"], p_cut_1=.05, p
     fs = 20
     fig,ax = plt.subplots()
     fig.set_size_inches(10,8)
-    s0 = ((np.log2(fold_changes.values)<=np.min((fc_cut,-1*fc_cut))) | (np.log2(fold_changes.values)>=np.max((fc_cut,-1*fc_cut)))) & (-1*np.log10(p_adjusted)<=np.min((-1*np.log10(p_cut_1),-1*np.log10(p_cut_2))))
-    s1 = (np.log2(fold_changes.values)>np.min((fc_cut,-1*fc_cut))) & (np.log2(fold_changes.values)<np.max((fc_cut,-1*fc_cut)))
-    s2 = ((np.log2(fold_changes.values)<=np.min((fc_cut,-1*fc_cut))) | (np.log2(fold_changes.values)>=np.max((fc_cut,-1*fc_cut)))) & (-1*np.log10(p_adjusted)>=np.min((-1*np.log10(p_cut_1),-1*np.log10(p_cut_2)))) & (-1*np.log10(p_adjusted)<np.max((-1*np.log10(p_cut_1),-1*np.log10(p_cut_2))))
-    s3 = ((np.log2(fold_changes.values)<=np.min((fc_cut,-1*fc_cut))) | (np.log2(fold_changes.values)>=np.max((fc_cut,-1*fc_cut)))) & (-1*np.log10(p_adjusted)>=np.max((-1*np.log10(p_cut_1),-1*np.log10(p_cut_2))))
-    ax.scatter(np.log2(fold_changes.values)[s0],-1*np.log10(p_adjusted)[s0],c="k",alpha=.5)
-    ax.scatter(np.log2(fold_changes.values)[s1],-1*np.log10(p_adjusted)[s1],c="k",alpha=.5)
-    ax.scatter(np.log2(fold_changes.values)[s2],-1*np.log10(p_adjusted)[s2],c="C2",alpha=.5)
-    ax.scatter(np.log2(fold_changes.values)[s3],-1*np.log10(p_adjusted)[s3],c="C3",alpha=.5)
+    if logscaled:
+        s0 = (((fold_changes.values)<=np.min((fc_cut,-1*fc_cut))) | ((fold_changes.values)>=np.max((fc_cut,-1*fc_cut)))) & (-1*np.log10(p_adjusted)<=np.min((-1*np.log10(p_cut_1),-1*np.log10(p_cut_2))))
+        s1 = ((fold_changes.values)>np.min((fc_cut,-1*fc_cut))) & ((fold_changes.values)<np.max((fc_cut,-1*fc_cut)))
+        s2 = (((fold_changes.values)<=np.min((fc_cut,-1*fc_cut))) | ((fold_changes.values)>=np.max((fc_cut,-1*fc_cut)))) & (-1*np.log10(p_adjusted)>=np.min((-1*np.log10(p_cut_1),-1*np.log10(p_cut_2)))) & (-1*np.log10(p_adjusted)<np.max((-1*np.log10(p_cut_1),-1*np.log10(p_cut_2))))
+        s3 = (((fold_changes.values)<=np.min((fc_cut,-1*fc_cut))) | ((fold_changes.values)>=np.max((fc_cut,-1*fc_cut)))) & (-1*np.log10(p_adjusted)>=np.max((-1*np.log10(p_cut_1),-1*np.log10(p_cut_2))))
+        ax.scatter((fold_changes.values)[s0],-1*np.log10(p_adjusted)[s0],c="k",alpha=.5)
+        ax.scatter((fold_changes.values)[s1],-1*np.log10(p_adjusted)[s1],c="k",alpha=.5)
+        ax.scatter((fold_changes.values)[s2],-1*np.log10(p_adjusted)[s2],c="C2",alpha=.5)
+        ax.scatter((fold_changes.values)[s3],-1*np.log10(p_adjusted)[s3],c="C3",alpha=.5)
+    else:
+        s0 = ((np.log2(fold_changes.values)<=np.min((fc_cut,-1*fc_cut))) | (np.log2(fold_changes.values)>=np.max((fc_cut,-1*fc_cut)))) & (-1*np.log10(p_adjusted)<=np.min((-1*np.log10(p_cut_1),-1*np.log10(p_cut_2))))
+        s1 = (np.log2(fold_changes.values)>np.min((fc_cut,-1*fc_cut))) & (np.log2(fold_changes.values)<np.max((fc_cut,-1*fc_cut)))
+        s2 = ((np.log2(fold_changes.values)<=np.min((fc_cut,-1*fc_cut))) | (np.log2(fold_changes.values)>=np.max((fc_cut,-1*fc_cut)))) & (-1*np.log10(p_adjusted)>=np.min((-1*np.log10(p_cut_1),-1*np.log10(p_cut_2)))) & (-1*np.log10(p_adjusted)<np.max((-1*np.log10(p_cut_1),-1*np.log10(p_cut_2))))
+        s3 = ((np.log2(fold_changes.values)<=np.min((fc_cut,-1*fc_cut))) | (np.log2(fold_changes.values)>=np.max((fc_cut,-1*fc_cut)))) & (-1*np.log10(p_adjusted)>=np.max((-1*np.log10(p_cut_1),-1*np.log10(p_cut_2))))
+        ax.scatter(np.log2(fold_changes.values)[s0],-1*np.log10(p_adjusted)[s0],c="k",alpha=.5)
+        ax.scatter(np.log2(fold_changes.values)[s1],-1*np.log10(p_adjusted)[s1],c="k",alpha=.5)
+        ax.scatter(np.log2(fold_changes.values)[s2],-1*np.log10(p_adjusted)[s2],c="C2",alpha=.5)
+        ax.scatter(np.log2(fold_changes.values)[s3],-1*np.log10(p_adjusted)[s3],c="C3",alpha=.5)
     if label:
         for ind in np.where(s2|s3)[0]:
             if np.log2(fold_changes.values)[ind]>0:
@@ -823,7 +850,10 @@ def Plot_Volcano(data, selection_dict, groups=["qc","Remaining"], p_cut_1=.05, p
     ax.plot([-100,100],[-1*np.log10(p_cut_1),-1*np.log10(p_cut_1)],ls=":",c="k",lw=2)
     ax.plot([-100,100],[-1*np.log10(p_cut_2),-1*np.log10(p_cut_2)],ls=":",c="k",lw=2)
     
-    ax.set_xlim(-1*np.max(np.abs(np.log2(fold_changes.values))*1.05),np.max(np.abs(np.log2(fold_changes.values))*1.05))
+    if logscaled:
+        ax.set_xlim(-1*np.max(np.abs((fold_changes.values))*1.05),np.max(np.abs((fold_changes.values))*1.05))
+    else:
+        ax.set_xlim(-1*np.max(np.abs(np.log2(fold_changes.values))*1.05),np.max(np.abs(np.log2(fold_changes.values))*1.05))
     ax.set_ylim(0,np.max(-1*np.log10(p_adjusted))*1.05)
     ax.set_xlabel("log2(FC)",fontsize=fs)
     ax.set_ylabel("-log10(adj. p-value)",fontsize=fs)
@@ -1069,7 +1099,7 @@ def get_samples_outliers(data, selection_dict, group="", cut_std_samples = 2, cu
     num_nan = [np.sum(np.isnan(data.loc[index,:].values))/len(data.loc[index,:].values) for index in selection_dict[group]["FileNames"]]
     std_num_nan = np.nanstd(num_nan)
     mean_num_nan = np.nanmean(num_nan)
-    outliers = [selection_dict[group]["FileNames"][out] for out in np.where((np.abs(sum_samples-mean_samples)>(cut_std_samples*std_samples))&(np.abs(num_nan-mean_num_nan)>(cut_std_nan*std_num_nan)))[0]]
+    outliers = [selection_dict[group]["FileNames"][out] for out in np.where((np.abs(sum_samples-mean_samples)>(cut_std_samples*std_samples)) | (np.abs(num_nan-mean_num_nan)>(cut_std_nan*std_num_nan)))[0]]
     return outliers
 
 ### Add automated selection for position effects (metadata needed!!!)
