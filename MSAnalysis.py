@@ -18,7 +18,7 @@ from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from sklearn.metrics import r2_score
 import umap
-from scipy.stats import ttest_ind, ranksums
+from scipy.stats import ttest_ind, ranksums, mannwhitneyu
 from statsmodels.stats.multitest import multipletests
 import Color_Mix as cm
 
@@ -729,6 +729,7 @@ def Plot_Volcano(data, selection_dict, groups=["qc","Remaining"], p_cut_1=.05, p
             "t-test": Perform Student's t-test (equal varaince) implemented in Scipy
             "Welch": Perform Welch's t-test (different varainces) implemented in Scipy
             "Wilcoxon": Perform Wilcoxon-Ranksum test implemented in Scipy
+            "Mann-Whitney-U": Perform Mann-Whitney-U test implemented in Scipy
         The default is "t-test".
     fold_changes : pandas.core.series, optional
         Precalculated fold changes. The default is None.
@@ -789,13 +790,15 @@ def Plot_Volcano(data, selection_dict, groups=["qc","Remaining"], p_cut_1=.05, p
             raise ValueError("Method for fold-change calculation not found")    
     
     if not p_values:
-        if method_p in ["t-test","Welch","Wilcoxon"]:
+        if method_p in ["t-test","Welch","Wilcoxon","Mann-Whitney-U"]:
             if method_p == "t-test":
                 p_values = ttest_ind(data.loc[selection_dict[groups[0]]["FileNames"],:],data.loc[selection_dict[groups[1]]["FileNames"],:],equal_var=True,nan_policy="omit")[1]
             elif method_p == "Welch":
                 p_values = ttest_ind(data.loc[selection_dict[groups[0]]["FileNames"],:],data.loc[selection_dict[groups[1]]["FileNames"],:],equal_var=False,nan_policy="omit")[1]
             elif method_p == "Wilcoxon":
                 p_values = np.asarray([ranksums(data.loc[selection_dict[groups[0]]["FileNames"],column],data.loc[selection_dict[groups[1]]["FileNames"],column])[1] for column in data.columns])
+            elif method_p == "Mann-Whitney-U":
+                p_values = np.asarray([mannwhitneyu(data.loc[selection_dict[groups[0]]["FileNames"],column],data.loc[selection_dict[groups[1]]["FileNames"],column])[1] for column in data.columns])
             adjust = True
         else:
             raise ValueError("Method for p-value calculation not found")
@@ -839,10 +842,16 @@ def Plot_Volcano(data, selection_dict, groups=["qc","Remaining"], p_cut_1=.05, p
         ax.scatter(np.log2(fold_changes.values)[s3],-1*np.log10(p_adjusted)[s3],c="C3",alpha=.5)
     if label:
         for ind in np.where(s2|s3)[0]:
-            if np.log2(fold_changes.values)[ind]>0:
-                ax.text(np.log2(fold_changes.values)[ind]+(np.max(np.abs(np.log2(fold_changes.values)))*0.02),-1*np.log10(p_adjusted)[ind],genes[ind])
+            if logscaled:
+                if fold_changes.values[ind]>0:
+                    ax.text((fold_changes.values)[ind]+(np.max(np.abs((fold_changes.values)))*0.02),-1*np.log10(p_adjusted)[ind],genes[ind])
+                else:
+                    ax.text((fold_changes.values)[ind]-(np.max(np.abs((fold_changes.values)))*0.125),-1*np.log10(p_adjusted)[ind],genes[ind])
             else:
-                ax.text(np.log2(fold_changes.values)[ind]-(np.max(np.abs(np.log2(fold_changes.values)))*0.125),-1*np.log10(p_adjusted)[ind],genes[ind])
+                if np.log2(fold_changes.values)[ind]>0:
+                    ax.text(np.log2(fold_changes.values)[ind]+(np.max(np.abs(np.log2(fold_changes.values)))*0.02),-1*np.log10(p_adjusted)[ind],genes[ind])
+                else:
+                    ax.text(np.log2(fold_changes.values)[ind]-(np.max(np.abs(np.log2(fold_changes.values)))*0.125),-1*np.log10(p_adjusted)[ind],genes[ind])
     if title:
         ax.set_title(title,fontsize=fs)
     ax.plot([fc_cut,fc_cut],[0,1e+4],ls=":",c="k",lw=2)
