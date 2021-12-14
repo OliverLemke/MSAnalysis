@@ -31,6 +31,7 @@ import Color_Mix as cm
 ##### DE add label/title (text)
 ##### Other selection methods for get selection
 ##### Add flag for pre-scaled data in volcano plot for FC-Berechnung  DONE
+##### Edgecolor PCA/UMAP/Boxplots!!!!! alpha = 0.9?
 ######
 
 ##### NaN-Euclidean distance for UMAP????
@@ -871,11 +872,11 @@ def Plot_Volcano(data, selection_dict, groups=["qc","Remaining"], p_cut_1=.05, p
     plt.savefig(os.path.join(path,output), bbox_inches='tight')
     
     if write_file:
-        Write_DifferentialExpressed(p_adjusted, fold_changes, p_cut=np.max((p_cut_1, p_cut_2)), fc_cut=fc_cut, output=file_out)
+        Write_DifferentialExpressed(p_adjusted, fold_changes, p_cut=np.max((p_cut_1, p_cut_2)), fc_cut=fc_cut, output=file_out,logscaled=logscaled)
     
     return p_adjusted, fold_changes
 
-def Write_DifferentialExpressed(p_values, fold_changes, p_cut=.05, fc_cut=2, output="Differential_Expressed.tsv"):
+def Write_DifferentialExpressed(p_values, fold_changes, p_cut=.05, fc_cut=2, output="Differential_Expressed.tsv", logscaled=False):
     """
     Write the output file for differential expressed proteins.
 
@@ -892,8 +893,10 @@ def Write_DifferentialExpressed(p_values, fold_changes, p_cut=.05, fc_cut=2, out
     output : str, optional
         Name of the output file. The default is "Differential_Expressed.tsv".
     """
-    
-    z=np.where((p_values<p_cut) & (np.abs(np.log2(fold_changes))>=fc_cut))
+    if logscaled:
+        z=np.where((p_values<p_cut) & (np.abs((fold_changes))>=fc_cut))
+    else:
+        z=np.where((p_values<p_cut) & (np.abs(np.log2(fold_changes))>=fc_cut))
     proteins = fold_changes.index.values[z]
     with open(os.path.join(path,output), "w") as file:
         file.write("Protein\t")
@@ -902,7 +905,10 @@ def Write_DifferentialExpressed(p_values, fold_changes, p_cut=.05, fc_cut=2, out
         for protein,index in zip(proteins,z[0]):
             file.write(protein)
             file.write("\t")
-            file.write("{0:.3f}".format(np.log2(fold_changes.loc[protein])))
+            if logscaled:
+                file.write("{0:.3f}".format((fold_changes.loc[protein])))
+            else:
+                file.write("{0:.3f}".format(np.log2(fold_changes.loc[protein])))
             file.write("\t")
             file.write("{0:.3f}".format(np.log10(p_values[index])))
             if index != z[0][-1]:
@@ -939,9 +945,9 @@ def Plot_DataCompleteness(data, selection_dict, group="qc", fdr=0.05, max_nan=0.
     fig.set_size_inches(5,10)
     ax.matshow(data_binary.T,cmap=cmap,norm=norm,aspect="auto")
     ax.set_xticks([])
-    ax.set_title("FDR: {:.2f}\n".format(fdr)+"Completeness: {:.3f}".format(np.sum(data_binary)/(np.shape(data_binary)[0]*np.shape(data_binary)[1])))
-    ax.set_xlabel("Samples")
-    ax.set_ylabel("sorted Genes")    
+    ax.set_title("FDR: {:.2f}\n".format(fdr)+"Completeness: {:.3f}".format(np.sum(data_binary)/(np.shape(data_binary)[0]*np.shape(data_binary)[1])),fontsize=20)
+    ax.set_xlabel("Samples",fontsize=20)
+    ax.set_ylabel("sorted Genes",fontsize=20)    
     legend_elements = [Patch(facecolor='C0',
                              label='not present'),
                        Patch(facecolor='C1',
@@ -954,15 +960,15 @@ def Plot_DataCompleteness(data, selection_dict, group="qc", fdr=0.05, max_nan=0.
     fig.set_size_inches(6,8)
     ax.matshow(data_binary_filtered.T,cmap=cmap,norm=norm,aspect="auto")
     ax.set_xticks([])
-    ax.set_title("FDR: {:.2f}\n".format(fdr)+"max NaN: {:.2f}\n".format(max_nan)+"Completeness: {:.3f}".format(np.sum(data_binary_filtered)/(np.shape(data_binary_filtered)[0]*np.shape(data_binary_filtered)[1])))
-    ax.set_xlabel("Samples")
-    ax.set_ylabel("sorted Genes")
+    ax.set_title("FDR: {:.2f}\n".format(fdr)+"max NaN: {:.2f}\n".format(max_nan)+"Completeness: {:.3f}".format(np.sum(data_binary_filtered)/(np.shape(data_binary_filtered)[0]*np.shape(data_binary_filtered)[1])), fontsize=20)
+    ax.set_xlabel("Samples",fontsize=20)
+    ax.set_ylabel("sorted Genes",fontsize=20)
     
     legend_elements = [Patch(facecolor='C0',
                              label='not present'),
                        Patch(facecolor='C1',
                              label='present')]
-    plt.legend(handles=legend_elements,bbox_to_anchor=(1.2, .5))    
+    plt.legend(handles=legend_elements,bbox_to_anchor=(1.2, .5),fontsize=20)    
     plt.savefig(os.path.join(path,output), bbox_inches='tight')
     return
 
