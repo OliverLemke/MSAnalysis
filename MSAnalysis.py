@@ -22,6 +22,9 @@ from scipy.stats import ttest_ind, ranksums, mannwhitneyu
 from statsmodels.stats.multitest import multipletests
 import Color_Mix as cm
 
+#### Use MAD instead of Std!!!!!!! and mean with median
+#### Selection_dict marker type
+
 ######
 ##### Plot_Scatter Protein replace R^2 with Pearson R????
 ##### Include hierarchical clustering
@@ -703,7 +706,12 @@ def get_TopFC(data, selection_dict, groups=["qc","Remaining"], Top_N=10, method=
 ####
 ####
 
+#### if any() for dataframe and array
+
 def Plot_Volcano(data, selection_dict, groups=["qc","Remaining"], p_cut_1=.05, p_cut_2=.01, fc_cut=2, label=True, p_values=None, method_p="t-test", fold_changes=None, method_fc="median", alpha=.05, output="Volcano.png", title=None, write_file=False, file_out="Volcano.tsv", logscaled=False):
+    
+    # Include nan-policy for statistical testing
+    
     """
     Get a Volcano plot for differential expression analysis. If not precomputed, p-values are adjusted using Benjamini-Hochberg correction.
     
@@ -723,7 +731,7 @@ def Plot_Volcano(data, selection_dict, groups=["qc","Remaining"], p_cut_1=.05, p
         log10(Fold Change) cut-off. The default is 2.
     label : bool, optional
         Label differential expressed proteins. The default is True.
-    p_values : array, optional
+    p_values : list, optional
         Precomputed p-values. The default is None.
     method_p : {"t-test","Welch","Wilcoxon"}, optional
         Method for p-Value calculation:
@@ -797,9 +805,9 @@ def Plot_Volcano(data, selection_dict, groups=["qc","Remaining"], p_cut_1=.05, p
             elif method_p == "Welch":
                 p_values = ttest_ind(data.loc[selection_dict[groups[0]]["FileNames"],:],data.loc[selection_dict[groups[1]]["FileNames"],:],equal_var=False,nan_policy="omit")[1]
             elif method_p == "Wilcoxon":
-                p_values = np.asarray([ranksums(data.loc[selection_dict[groups[0]]["FileNames"],column],data.loc[selection_dict[groups[1]]["FileNames"],column])[1] for column in data.columns])
+                p_values = np.asarray([ranksums(data.loc[selection_dict[groups[0]]["FileNames"],column],data.loc[selection_dict[groups[1]]["FileNames"],column],nan_policy="omit")[1] for column in data.columns])
             elif method_p == "Mann-Whitney-U":
-                p_values = np.asarray([mannwhitneyu(data.loc[selection_dict[groups[0]]["FileNames"],column],data.loc[selection_dict[groups[1]]["FileNames"],column])[1] for column in data.columns])
+                p_values = np.asarray([mannwhitneyu(data.loc[selection_dict[groups[0]]["FileNames"],column],data.loc[selection_dict[groups[1]]["FileNames"],column],nan_policy="omit")[1] for column in data.columns])
             adjust = True
         else:
             raise ValueError("Method for p-value calculation not found")
@@ -973,6 +981,9 @@ def Plot_DataCompleteness(data, selection_dict, group="qc", fdr=0.05, max_nan=0.
     return
 
 def Plot_BoxPlot_MS(data, selection_dict, group="qc", output="BoxPlot_MS.png"):
+    
+    ### Flexible y-labels
+    
     """
     Boxplot protein quantities and number for selected measurements.
 
