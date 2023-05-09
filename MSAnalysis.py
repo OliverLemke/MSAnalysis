@@ -822,6 +822,7 @@ def Plot_Volcano(data, selection_dict, groups=["qc","Remaining"], p_cut_1=.05, p
     if adjust:
         p_adjusted = multipletests(p_values,alpha=alpha,method="fdr_bh")[1]
         print("adjusting p-values")
+        print(p_adjusted)
     else:
         p_adjusted = p_values
     
@@ -1127,5 +1128,40 @@ def get_samples_outliers(data, selection_dict, group="", cut_std_samples = 2, cu
     mean_num_nan = np.nanmean(num_nan)
     outliers = [selection_dict[group]["FileNames"][out] for out in np.where((np.abs(sum_samples-mean_samples)>(cut_std_samples*std_samples)) | (np.abs(num_nan-mean_num_nan)>(cut_std_nan*std_num_nan)))[0]]
     return outliers
+
+def Plot_completeness_batch(data, selection_dict, output="Data_completeness_batches.png"):
+    """
+    Plot the completeness for every batch. For best interpretaion sort it prior according to running order.
+
+    Parameters
+    ----------
+    data : pandas.DataFrame
+        Data to be analyzed.
+    selection_dict : dict
+        Dictionary containing batches. Obtained by get_Selection().
+    output : str, optional
+        Name of the output file. The default is "Data_completeness_batches.png".
+
+    """
+
+    fs = 20
+    
+    fig,ax = plt.subplots()
+    fig.set_size_inches(8,6)
+    ax.plot([0,0],[0,1],c="k",ls=":")
+    
+    for ind,key in enumerate(selection_dict):
+        ax.plot(np.linspace(ind,ind+1,len(selection_dict[key]["FileNames"])),sum(~np.isnan(data.loc[selection_dict[key]["FileNames"]].T.values))/np.shape(data)[1],color=selection_dict[key]["Color"],lw=3,label=selection_dict[key]["Label"])
+        ax.plot([ind+1,ind+1],[0,1],c="k",ls=":")
+        
+    ax.set_xlim(0,len(selection_dict))
+    ax.set_ylim(0,1)
+    ax.set_xticks(np.arange(0.5,len(selection_dict)+0.5,1))
+    ax.set_xticklabels(np.arange(1,len(selection_dict)+1,1),fontsize=fs)
+    ax.set_xlabel("Batch",fontsize=fs)
+    ax.set_ylabel("Completeness",fontsize=fs)
+    ax.tick_params(axis="y",labelsize=fs)
+    
+    plt.savefig(os.path.join(path,output), bbox_inches="tight")
 
 ### Add automated selection for position effects (metadata needed!!!)
